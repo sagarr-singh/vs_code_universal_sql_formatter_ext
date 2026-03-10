@@ -4,6 +4,7 @@
   "description": "Format SQL queries inside any programming language file",
   "version": "0.0.1",
   "publisher": "dev-sagar",
+  "license": "MIT",
   "engines": {
     "vscode": "^1.80.0"
   },
@@ -11,6 +12,23 @@
     "Programming Languages",
     "Formatters"
   ],
+  "keywords": [
+    "sql",
+    "formatter",
+    "database",
+    "prettier",
+    "query",
+    "mysql",
+    "postgres"
+  ],
+  "repository": {
+    "type": "git",
+    "url": "https://github.com/sagarr-singh/vs_code_universal_sql_formatter_ext.git"
+  },
+  "homepage": "https://github.com/sagarr-singh/vs_code_universal_sql_formatter_ext",
+  "bugs": {
+    "url": "https://github.com/sagarr-singh/vs_code_universal_sql_formatter_ext/issues"
+  },
   "main": "./out/extension.js",
   "activationEvents": [
     "onLanguage:sql"
@@ -53,18 +71,7 @@
           "when": "editorHasSelection"
         }
       ]
-    },
-    "repository": {
-      "type": "git",
-      "url": "https://github.com/yourrepo/universal-sql-formatter"
-    },
-    "keywords": [
-      "sql",
-      "formatter",
-      "database",
-      "prettier",
-      "query"
-    ]
+    }
   },
   "scripts": {
     "vscode:prepublish": "npm run compile",
