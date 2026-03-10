@@ -8,7 +8,7 @@
   "engines": {
     "vscode": "^1.80.0"
   },
-  "icon": "images/icon.png",
+  "icon": "images/image.png",
   "categories": [
     "Programming Languages",
     "Formatters"
