@@ -1,0 +1,82 @@
+{
+  "name": "universal-sql-formatter",
+  "displayName": "Universal SQL Formatter",
+  "description": "Format SQL queries inside any programming language file",
+  "version": "0.0.1",
+  "publisher": "dev-sagar",
+  "engines": {
+    "vscode": "^1.80.0"
+  },
+  "categories": [
+    "Programming Languages",
+    "Formatters"
+  ],
+  "main": "./out/extension.js",
+  "activationEvents": [
+    "onLanguage:sql"
+  ],
+  "contributes": {
+    "commands": [
+      {
+        "command": "sqlFormatter.formatQuery",
+        "title": "Format SQL Query"
+      }
+    ],
+    "keybindings": [
+      {
+        "command": "sqlFormatter.formatQuery",
+        "key": "ctrl+alt+f",
+        "mac": "cmd+alt+f",
+        "when": "editorTextFocus"
+      }
+    ],
+    "configuration": {
+      "title": "Universal SQL Formatter",
+      "properties": {
+        "sqlFormatter.dialect": {
+          "type": "string",
+          "default": "postgresql",
+          "enum": [
+            "mysql",
+            "postgresql",
+            "sqlite",
+            "tsql"
+          ],
+          "description": "SQL dialect used for formatting"
+        }
+      }
+    },
+    "menus": {
+      "editor/context": [
+        {
+          "command": "sqlFormatter.formatQuery",
+          "when": "editorHasSelection"
+        }
+      ]
+    },
+    "repository": {
+      "type": "git",
+      "url": "https://github.com/yourrepo/universal-sql-formatter"
+    },
+    "keywords": [
+      "sql",
+      "formatter",
+      "database",
+      "prettier",
+      "query"
+    ]
+  },
+  "scripts": {
+    "vscode:prepublish": "npm run compile",
+    "compile": "tsc -p ./",
+    "watch": "tsc -watch -p ./"
+  },
+  "devDependencies": {
+    "@types/node": "22.x",
+    "@types/vscode": "^1.80.0",
+    "typescript": "^5.9.3"
+  },
+  "dependencies": {
+    "sql-formatter": "^15.7.2"
+  }
+}
