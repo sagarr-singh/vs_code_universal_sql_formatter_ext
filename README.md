@@ -1,4 +1,4 @@
-# Universal SQL Formatter
+# Universal SQL Formatter Extension
 
 Format SQL queries inside any programming file.
 
