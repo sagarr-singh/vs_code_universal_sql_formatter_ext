@@ -3,7 +3,7 @@
   "displayName": "Universal SQL Formatter",
   "description": "Format SQL queries inside any programming language file",
   "version": "0.0.1",
-  "publisher": "dev-sagar",
+  "publisher": "sagarDev",
   "license": "MIT",
   "engines": {
     "vscode": "^1.80.0"
@@ -22,6 +22,10 @@
     "mysql",
     "postgres"
   ],
+  "sqlFormatter.formatOnSave": {
+    "type": "boolean",
+    "default": false
+  },
   "repository": {
     "type": "git",
     "url": "https://github.com/sagarr-singh/vs_code_universal_sql_formatter_ext.git"

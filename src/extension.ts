@@ -1,146 +1,182 @@
-import * as vscode from "vscode";
-import { format, SqlLanguage } from "sql-formatter";
+import * as vscode from 'vscode'
+import { format, SqlLanguage } from 'sql-formatter'
 
-export function activate(context: vscode.ExtensionContext) {
-
-  console.log("Universal SQL Formatter activated");
+export function activate (context: vscode.ExtensionContext) {
+  console.log('Universal SQL Formatter activated')
 
   // COMMAND: Format SQL query
   const formatCommand = vscode.commands.registerCommand(
-    "sqlFormatter.formatQuery",
+    'sqlFormatter.formatQuery',
     async () => {
-
-      const editor = vscode.window.activeTextEditor;
+      const editor = vscode.window.activeTextEditor
 
       if (!editor) {
-        vscode.window.showErrorMessage("No active editor found");
-        return;
+        vscode.window.showErrorMessage('No active editor found')
+        return
       }
 
-      const document = editor.document;
-      const selection = editor.selection;
+      const document = editor.document
+      const selection = editor.selection
 
-      let text = document.getText(selection);
+      let text = document.getText(selection)
 
       // If no selection → format entire document
       if (!text) {
-        text = document.getText();
+        text = document.getText()
       }
 
       if (!looksLikeSQL(text)) {
         vscode.window.showWarningMessage(
-          "Selected text does not appear to be SQL"
-        );
-        return;
+          'Selected text does not appear to be SQL'
+        )
+        return
       }
 
-      const config = vscode.workspace.getConfiguration("sqlFormatter");
+      const config = vscode.workspace.getConfiguration('sqlFormatter')
 
-      const dialect = (config.get<string>("dialect") || "postgresql") as SqlLanguage;
+      const dialect = (config.get<string>('dialect') ||
+        'postgresql') as SqlLanguage
 
-      let formatted = "";
+      let formatted = ''
+
+      format(text, {
+        language: dialect,
+        keywordCase: 'upper',
+        indentStyle: 'standard',
+        linesBetweenQueries: 1
+      })
 
       try {
         formatted = format(text, {
           language: dialect
-        });
+        })
       } catch (err) {
-        vscode.window.showErrorMessage("SQL formatting failed");
-        return;
+        vscode.window.showErrorMessage('SQL formatting failed')
+        return
       }
 
       editor.edit(editBuilder => {
-
         if (!selection.isEmpty) {
-          editBuilder.replace(selection, formatted);
+          editBuilder.replace(selection, formatted)
         } else {
-
           const fullRange = new vscode.Range(
             document.positionAt(0),
             document.positionAt(document.getText().length)
-          );
+          )
 
-          editBuilder.replace(fullRange, formatted);
+          editBuilder.replace(fullRange, formatted)
         }
-
-      });
-
+      })
     }
-  );
+  )
 
-  context.subscriptions.push(formatCommand);
-
+  context.subscriptions.push(formatCommand)
 
   // FORMAT DOCUMENT (.sql files)
   const sqlFormatter = vscode.languages.registerDocumentFormattingEditProvider(
-    "sql",
+    'sql',
     {
-      provideDocumentFormattingEdits(document) {
+      provideDocumentFormattingEdits (document) {
+        const config = vscode.workspace.getConfiguration('sqlFormatter')
 
-        const config = vscode.workspace.getConfiguration("sqlFormatter");
+        const dialect = (config.get<string>('dialect') ||
+          'postgresql') as SqlLanguage
 
-        const dialect = (config.get<string>("dialect") || "postgresql") as SqlLanguage;
+        const text = document.getText()
 
-        const text = document.getText();
-
-        let formatted = "";
+        let formatted = ''
 
         try {
           formatted = format(text, {
             language: dialect
-          });
+          })
         } catch {
-          return [];
+          return []
         }
 
         const range = new vscode.Range(
           document.positionAt(0),
           document.positionAt(text.length)
-        );
+        )
 
-        return [vscode.TextEdit.replace(range, formatted)];
+        return [vscode.TextEdit.replace(range, formatted)]
       }
     }
-  );
+  )
 
-  context.subscriptions.push(sqlFormatter);
+  context.subscriptions.push(sqlFormatter)
 }
 
+// Detect SQL blocks inside code
+function detectSQLBlocks (text: string) {
+  const blocks: { sql: string; start: number; end: number }[] = []
 
-function looksLikeSQL(text: string): boolean {
+  const regexList = [
+    // template strings
+    /`([\s\S]*?)`/g,
 
+    // python multiline
+    /"""([\s\S]*?)"""/g,
+
+    // single quote multiline
+    /'([\s\S]*?)'/g
+  ]
+
+  regexList.forEach(regex => {
+    let match
+
+    while ((match = regex.exec(text)) !== null) {
+      const candidate = match[1]
+
+      if (looksLikeSQL(candidate)) {
+        blocks.push({
+          sql: candidate,
+          start: match.index + 1,
+          end: match.index + match[0].length - 1
+        })
+      }
+    }
+  })
+
+  return blocks
+}
+
+/*
+Simple SQL detection
+*/
+function looksLikeSQL (text: string): boolean {
   const keywords = [
-    "select",
-    "insert",
-    "update",
-    "delete",
-    "from",
-    "where",
-    "join",
-    "group by",
-    "order by"
-  ];
+    'select',
+    'insert',
+    'update',
+    'delete',
+    'join',
+    'left join',
+    'right join',
+    'where',
+    'from',
+    'group by',
+    'order by'
+  ]
 
-  const lower = text.toLowerCase();
+  const lower = text.toLowerCase()
 
-  return keywords.some(k => lower.includes(k));
+  return keywords.some(k => lower.includes(k))
 }
-
 
 // Optional helper for future features
-export function extractSQLStrings(text: string): string[] {
+export function extractSQLStrings (text: string): string[] {
+  const regex = /`([\s\S]*?)`/g
 
-  const regex = /`([\s\S]*?)`/g;
+  const matches: string[] = []
 
-  const matches: string[] = [];
-
-  let match;
+  let match
 
   while ((match = regex.exec(text)) !== null) {
-    matches.push(match[1]);
+    matches.push(match[1])
   }
 
-  return matches;
+  return matches
 }
 
-export function deactivate() {}
+export function deactivate () {}
