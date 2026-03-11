@@ -2,7 +2,7 @@
   "name": "universal-sql-formatter",
   "displayName": "Universal SQL Formatter",
   "description": "Format SQL queries inside any programming language file",
-  "version": "0.0.1",
+  "version": "0.0.2",
   "publisher": "sagarDev",
   "license": "MIT",
   "engines": {
