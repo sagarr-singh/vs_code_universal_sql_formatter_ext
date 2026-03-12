@@ -4,12 +4,10 @@ import { format, SqlLanguage } from 'sql-formatter'
 export function activate (context: vscode.ExtensionContext) {
   console.log('Universal SQL Formatter activated')
 
-  // COMMAND: Format SQL query
   const formatCommand = vscode.commands.registerCommand(
     'sqlFormatter.formatQuery',
     async () => {
       const editor = vscode.window.activeTextEditor
-
       if (!editor) {
         vscode.window.showErrorMessage('No active editor found')
         return
@@ -20,7 +18,6 @@ export function activate (context: vscode.ExtensionContext) {
 
       let text = document.getText(selection)
 
-      // If no selection → format entire document
       if (!text) {
         text = document.getText()
       }
@@ -33,39 +30,31 @@ export function activate (context: vscode.ExtensionContext) {
       }
 
       const config = vscode.workspace.getConfiguration('sqlFormatter')
-
       const dialect = (config.get<string>('dialect') ||
         'postgresql') as SqlLanguage
 
       let formatted = ''
 
-      format(text, {
-        language: dialect,
-        keywordCase: 'upper',
-        indentStyle: 'standard',
-        linesBetweenQueries: 1
-      })
-
       try {
-        formatted = format(text, {
-          language: dialect
-        })
+        formatted = prettifySQL(text, dialect)
       } catch (err) {
         vscode.window.showErrorMessage('SQL formatting failed')
         return
       }
 
-      editor.edit(editBuilder => {
-        if (!selection.isEmpty) {
-          editBuilder.replace(selection, formatted)
-        } else {
-          const fullRange = new vscode.Range(
-            document.positionAt(0),
-            document.positionAt(document.getText().length)
-          )
+      await editor.edit(editBuilder => {
+        const selections = editor.selections
 
-          editBuilder.replace(fullRange, formatted)
-        }
+        selections.forEach(sel => {
+          let text = document.getText(sel)
+
+          if (!text.trim()) return
+
+          const formatted = prettifySQL(text, dialect)
+          const formattedText = postBeautify(formatted)
+
+          editBuilder.replace(sel, formattedText)
+        })
       })
     }
   )
@@ -78,28 +67,20 @@ export function activate (context: vscode.ExtensionContext) {
     {
       provideDocumentFormattingEdits (document) {
         const config = vscode.workspace.getConfiguration('sqlFormatter')
-
         const dialect = (config.get<string>('dialect') ||
           'postgresql') as SqlLanguage
 
         const text = document.getText()
 
-        let formatted = ''
-
-        try {
-          formatted = format(text, {
-            language: dialect
-          })
-        } catch {
-          return []
-        }
+        const formatted = prettifySQL(text, dialect)
+        const formattedText = postBeautify(formatted)
 
         const range = new vscode.Range(
           document.positionAt(0),
           document.positionAt(text.length)
         )
 
-        return [vscode.TextEdit.replace(range, formatted)]
+        return [vscode.TextEdit.replace(range, formattedText)]
       }
     }
   )
@@ -107,76 +88,114 @@ export function activate (context: vscode.ExtensionContext) {
   context.subscriptions.push(sqlFormatter)
 }
 
-// Detect SQL blocks inside code
-function detectSQLBlocks (text: string) {
-  const blocks: { sql: string; start: number; end: number }[] = []
+function prettifySQL (text: string, dialect: SqlLanguage): string {
+  let cleaned = cleanupSQL(text)
 
-  const regexList = [
-    // template strings
-    /`([\s\S]*?)`/g,
-
-    // python multiline
-    /"""([\s\S]*?)"""/g,
-
-    // single quote multiline
-    /'([\s\S]*?)'/g
-  ]
-
-  regexList.forEach(regex => {
-    let match
-
-    while ((match = regex.exec(text)) !== null) {
-      const candidate = match[1]
-
-      if (looksLikeSQL(candidate)) {
-        blocks.push({
-          sql: candidate,
-          start: match.index + 1,
-          end: match.index + match[0].length - 1
-        })
-      }
-    }
+  let formatted = format(cleaned, {
+    language: dialect,
+    keywordCase: 'upper',
+    indentStyle: 'standard',
+    logicalOperatorNewline: 'before',
+    linesBetweenQueries: 1,
+    tabWidth: 2,
+    expressionWidth: 80,
+    denseOperators: true
   })
 
-  return blocks
+  formatted = alignSelectColumns(formatted)
+
+  formatted = formatted.replace(/\s+(AND|OR)\s+/gi, '\n  $1 ')
+
+  formatted = formatted.replace(/\n{3,}/g, '\n\n')
+
+  return formatted.trim()
 }
 
-/*
-Simple SQL detection
-*/
+function postBeautify (sql: string): string {
+  return (
+    sql
+      // keep LIMIT OFFSET together
+      .replace(/LIMIT\s*\n\s*(\?)/g, 'LIMIT $1')
+      .replace(/OFFSET\s*\n\s*(\?)/g, 'OFFSET $1')
+
+      // keep WHERE conditions inline
+      .replace(/WHERE\s*\n\s*/g, 'WHERE ')
+
+      // keep ORDER BY inline
+      .replace(/ORDER BY\s*\n\s*/g, 'ORDER BY ')
+
+      // keep FROM inline
+      .replace(/FROM\s*\n\s*/g, 'FROM ')
+
+      // compact function calls
+      .replace(/\(\s*\n\s*/g, '(')
+      .replace(/\n\s*\)/g, ')')
+
+      // remove excessive blank lines
+      .replace(/\n{3,}/g, '\n\n')
+  )
+}
+
+function cleanupSQL (text: string): string {
+  text = text.trim()
+
+  // normalize whitespace
+  text = text.replace(/\s+/g, ' ')
+
+  const keywordFixes: Record<string, string> = {
+    'se lect': 'select',
+    'sel ect': 'select',
+    'fr om': 'from',
+    'wh ere': 'where',
+    'gro up by': 'group by',
+    'ord er by': 'order by',
+    'ins ert': 'insert',
+    'upd ate': 'update',
+    'del ete': 'delete',
+    'jo in': 'join'
+  }
+
+  for (const broken in keywordFixes) {
+    const regex = new RegExp(broken, 'gi')
+    text = text.replace(regex, keywordFixes[broken])
+  }
+
+  text = text.replace(/\s*,\s*/g, ', ')
+  text = text.replace(/\s*=\s*/g, ' = ')
+
+  return text
+}
+
+function alignSelectColumns (sql: string): string {
+  const lines = sql.split('\n')
+
+  return lines
+    .map(line => {
+      if (line.trim().startsWith(',')) {
+        return '  ' + line.trim()
+      }
+
+      return line
+    })
+    .join('\n')
+}
+
 function looksLikeSQL (text: string): boolean {
   const keywords = [
-    'select',
-    'insert',
-    'update',
-    'delete',
-    'join',
-    'left join',
-    'right join',
-    'where',
-    'from',
-    'group by',
-    'order by'
+    'select ',
+    'insert ',
+    'update ',
+    'delete ',
+    'join ',
+    'from ',
+    'where ',
+    'group by ',
+    'order by '
   ]
 
   const lower = text.toLowerCase()
 
   return keywords.some(k => lower.includes(k))
-}
-
-// Optional helper for future features
-export function extractSQLStrings (text: string): string[] {
-  const regex = /`([\s\S]*?)`/g
-
-  const matches: string[] = []
-
-  let match
-
-  while ((match = regex.exec(text)) !== null) {
-    matches.push(match[1])
-  }
-
-  return matches
 }
 
 export function deactivate () {}
