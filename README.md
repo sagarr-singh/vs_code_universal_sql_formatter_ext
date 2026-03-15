@@ -1,53 +1,65 @@
-# Universal SQL Formatter VS Code Extension
+# Universal SQL Prettier
 
-Format SQL queries inside any programming language file.
-
-Supports:
-
-* JavaScript
-* TypeScript
-* Go
-* Python
-* SQL files
+Format SQL queries anywhere in your codebase.
 
 ## Features
 
-* Format selected SQL query
-* Format entire `.sql` file
-* Supports multiple SQL dialects
-* Keyboard shortcut support
+* SQL keyword normalization
+* SQL prettification
+* Broken SQL repair
+* Multi-selection formatting
+* SQL formatting inside code blocks
+* Dialect support
 
-## Keyboard Shortcut
+Supported dialects:
+* PostgreSQL
+* MySQL
+* SQLite
+* T-SQL
 
-CTRL + ALT + F
+## Demo
+
+![Demo](images/demo.png)
+![Demo](images/demo.gif)
+
+<p align="center">
+  <img src="images/demo.gif" width="800" alt="demo"/>
+</p>
+
+## Commands
+
+| Command          | Shortcut        |
+| ---------------- | --------------- |
+| Format SQL Query | Ctrl + Alt + P  |
+| Format Document  | Shift + Alt + F |
 
 ## Example
 
 Before:
-
+```sql
 select id,name from users where id=1
+```
 
 After:
-
+```sql
 SELECT
-id,
-name
+  id,
+  name
 FROM users
-WHERE id = 1;
+WHERE id = 1
+```
 
-## Extension Settings
+## Settings
 
-`sqlFormatter.dialect`
+`sqlFormatter.dialect` - Choose SQL dialect (postgresql, mysql, sqlite, tsql)
 
-Supported values:
+Example:
+```json
+{
+  "sqlFormatter.dialect": "postgresql"
+}
+```
 
-* mysql
-* postgresql
-* sqlite
-* tsql
+## License
 
-## Release Notes
-
-### 0.0.1
-
-Initial release of Universal SQL Formatter.
+MIT

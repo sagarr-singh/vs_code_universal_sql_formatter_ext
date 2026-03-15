@@ -1,8 +1,8 @@
 {
-  "name": "universal-sql-formatter",
-  "displayName": "Universal SQL Formatter",
+  "name": "universal-sql-prettier",
+  "displayName": "Universal SQL Prettier",
   "description": "Format SQL queries inside any programming language file",
-  "version": "0.0.3",
+  "version": "0.0.5",
   "publisher": "sagarDev",
   "license": "MIT",
   "engines": {
@@ -22,10 +22,6 @@
     "mysql",
     "postgres"
   ],
-  "sqlFormatter.formatOnSave": {
-    "type": "boolean",
-    "default": false
-  },
   "repository": {
     "type": "git",
     "url": "https://github.com/sagarr-singh/vs_code_universal_sql_formatter_ext.git"
@@ -48,13 +44,25 @@
     "keybindings": [
       {
         "command": "sqlFormatter.formatQuery",
-        "key": "ctrl+alt+f",
-        "mac": "cmd+alt+f",
+        "key": "ctrl+alt+p",
+        "mac": "cmd+alt+p",
         "when": "editorTextFocus"
       }
     ],
+    "languages": [
+      {
+        "id": "sql",
+        "aliases": [
+          "SQL"
+        ],
+        "extensions": [
+          ".sql"
+        ]
+      }
+    ],
+    "documentFormattingEditProvider": true,
     "configuration": {
-      "title": "Universal SQL Formatter",
+      "title": "Universal SQL Prettier",
       "properties": {
         "sqlFormatter.dialect": {
           "type": "string",
@@ -67,6 +75,12 @@
           ],
           "description": "SQL dialect used for formatting"
         }
+      },
+      "sqlFormatter.formatOnSave": {
+        "SqlFormatter.formatOnSave": "true",
+        "type": "boolean",
+        "default": false,
+        "description": "Automatically format SQL when saving file"
       }
     },
     "menus": {
