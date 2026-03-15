@@ -2,7 +2,7 @@
   "name": "universal-sql-prettier",
   "displayName": "Universal SQL Prettier",
   "description": "Format SQL queries inside any programming language file",
-  "version": "0.0.6",
+  "version": "0.0.7",
   "publisher": "sagarDev",
   "license": "MIT",
   "engines": {
