@@ -5,7 +5,7 @@ export function activate(context: vscode.ExtensionContext) {
   console.log('Universal SQL Formatter activated')
 
   const formatCommand = vscode.commands.registerCommand(
-    'sqlFormatter.formatQuery',
+    "sqlFormatter.formatQuery",
     async () => {
       const editor = vscode.window.activeTextEditor
       if (!editor) {
