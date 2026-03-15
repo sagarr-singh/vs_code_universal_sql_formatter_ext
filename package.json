@@ -2,7 +2,7 @@
   "name": "universal-sql-prettier",
   "displayName": "Universal SQL Prettier",
   "description": "Format SQL queries inside any programming language file",
-  "version": "0.0.7",
+  "version": "0.0.8",
   "publisher": "sagarDev",
   "license": "MIT",
   "engines": {
@@ -32,9 +32,9 @@
   },
   "main": "./out/extension.js",
   "activationEvents": [
-  "onCommand:sqlFormatter.formatQuery",
-  "onLanguage:sql"
-],
+    "onCommand:sqlFormatter.formatQuery",
+    "onLanguage:sql"
+  ],
   "contributes": {
     "commands": [
       {
