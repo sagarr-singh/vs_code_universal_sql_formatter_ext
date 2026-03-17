@@ -182,78 +182,91 @@ function applyAlignment(lines: string[], start: number, end: number): void {
 
   //  Aligns a SQL block so the leading clause keyword (SELECT, FROM, WHERE, etc.)
   //  sits at column 0 and all subsequent clause keywords align to the same column.
+
 // Top-level clause keywords that should start at column 0
 const CLAUSE_KEYWORDS = [
-  // Multi-word first — must be matched before their single-word parts
-  "ORDER BY", "GROUP BY", "LEFT JOIN", "RIGHT JOIN", "INNER JOIN",
-  "FULL OUTER JOIN", "FULL JOIN", "CROSS JOIN", "INSERT INTO",
-  "DELETE FROM", "UNION ALL",
-  // Single-word
-  "SELECT", "FROM", "WHERE", "JOIN", "ON", "HAVING",
-  "LIMIT", "OFFSET", "SET", "UPDATE", "DELETE", "INSERT",
-  "VALUES", "WITH", "UNION", "INTERSECT", "EXCEPT", "RETURNING",
+  "SELECT", "FROM", "WHERE",
+  "LEFT JOIN", "RIGHT JOIN", "INNER JOIN", "FULL JOIN", "CROSS JOIN", "JOIN",
+  "ON",
+  "GROUP BY", "ORDER BY", "HAVING",
+  "LIMIT", "OFFSET",
+  "UNION", "UNION ALL", "INTERSECT", "EXCEPT",
+  "INSERT INTO", "INSERT",
+  "VALUES",
+  "UPDATE", "SET",
+  "DELETE FROM", "DELETE",
+  "WITH",
+  "RETURNING",
 ];
 
-// Sorted longest-first so multi-word keywords always win the match
-const SORTED_CLAUSES = [...CLAUSE_KEYWORDS].sort((a, b) => b.length - a.length);
-
-// The single regex that matches any clause keyword at the start of a line (after trimming)
-const CLAUSE_LINE_RE = new RegExp(
-  `^(${SORTED_CLAUSES.map((k) => k.replace(/ /g, "\\s+")).join("|")})(?:\\s|$)`,
-  "i"
-);
-
 function alignClauses(sql: string): string {
-  // ── 1. Strip all leading whitespace so we start from a clean baseline ─────
-  const lines = sql
+  // ── Step 1: strip ALL leading whitespace from every line ──────────────────
+  const stripped = sql
     .split("\n")
     .map((l) => l.trimStart())
-    .filter((l) => l.length > 0);
+    .filter((l) => l.length > 0)   // drop blank lines between clauses
+    .join("\n");
 
-  // ── 2. Find the longest clause keyword present in THIS query ──────────────
-  //    e.g. "ORDER BY" = 8, "SELECT" = 6 → maxLen = 8
-  //    Every keyword gets right-padded to maxLen, so content always starts
-  //    at column (maxLen + 2) — one consistent vertical line.
+  // ── Step 2: ensure every top-level clause starts on its own line ──────────
+  // Sort longest first so "GROUP BY" is matched before "GROUP"
+  const sorted = [...CLAUSE_KEYWORDS].sort((a, b) => b.length - a.length);
+
+  // Inject a newline before each clause keyword that isn't already at line start
+  // Handles cases like:  "SELECT * FROM users" → multi-line
+  let expanded = stripped;
+  for (const kw of sorted) {
+    const re = new RegExp(`(?<!^)(?<!\\n)\\b(${kw})\\b`, "gi");
+    expanded = expanded.replace(re, "\n$1");
+  }
+
+  // ── Step 3: split into lines, identify which ones START with a clause ──────
+  const lines = expanded.split("\n").filter((l) => l.trim().length > 0);
+
+  const clauseStartRe = new RegExp(
+    `^(${sorted.map((k) => k.replace(/ /g, "\\s+")).join("|")})\\b`,
+    "i"
+  );
+
+  // ── Step 4: find the longest opening clause keyword for padding ───────────
+  // We pad shorter keywords with spaces so their content aligns vertically
+  //
+  //   SELECT  u.id,               ← "SELECT"  = 6 chars, padded to 7 + 1 space
+  //   FROM    users u             ← "FROM"    = 4 chars, padded to 7 + 1 space
+  //   WHERE   u.status = 'active' ← "WHERE"   = 5 chars, padded to 7 + 1 space
+  //   LEFT JOIN orders o          ← "LEFT JOIN" = 9 chars — multiword handled below
+
   let maxKwLen = 0;
   for (const line of lines) {
-    const m = line.match(CLAUSE_LINE_RE);
+    const m = line.match(clauseStartRe);
     if (m) {
-      const kw = m[1].replace(/\s+/g, " "); // normalise internal whitespace
-      maxKwLen = Math.max(maxKwLen, kw.length);
+      // Normalise multi-space matches back to single space for length measurement
+      const normalised = m[0].replace(/\s+/g, " ");
+      maxKwLen = Math.max(maxKwLen, normalised.length);
     }
   }
 
-  // Content column = maxKwLen + 2 spaces of breathing room
-  // e.g. maxKwLen=8 → content starts at col 10:
-  //   "ORDER BY  llt.created_at DESC"
-  //   "SELECT    llt.id,"
-  //   "FROM      loans.lender_loans_tracker"
-  const CONTENT_COL = maxKwLen + 2;
-
-  // ── 3. Rebuild every line ─────────────────────────────────────────────────
+  // ── Step 5: rebuild — clause lines get padded keyword, rest get indented ──
   const result: string[] = [];
-  let inBlock = false;
+  let insideClause = false;
 
   for (const line of lines) {
-    const m = line.match(CLAUSE_LINE_RE);
+    const m = line.match(clauseStartRe);
 
     if (m) {
-      inBlock = true;
-      const kw   = m[1].replace(/\s+/g, " ").toUpperCase();
-      const rest  = line.slice(m[0].length).trimStart(); // text after the keyword
-      const pad   = " ".repeat(CONTENT_COL - kw.length); // right-pad keyword
+      insideClause = true;
+      const kw = m[0].replace(/\s+/g, " ").toUpperCase();    // normalise spacing + case
+      const rest = line.slice(m[0].length).trimStart();        // everything after keyword
+      const pad = " ".repeat(maxKwLen - kw.length);            // right-pad keyword
 
       if (rest) {
-        // Keyword + content on the same line → "ORDER BY  llt.created_at DESC"
-        result.push(`${kw}${pad}${rest}`);
+        // Clause keyword and its content on one line: "WHERE  u.id = ?"
+        result.push(`${kw}${pad}  ${rest}`);
       } else {
-        // Keyword alone (e.g. bare SELECT) → push it, next lines will be indented
         result.push(kw);
       }
-    } else if (inBlock) {
-      // Continuation line (column list, JOIN condition, etc.)
-      // Indent exactly to CONTENT_COL so it aligns with keyword content above/below
-      result.push(`${" ".repeat(CONTENT_COL)}${line}`);
+    } else if (insideClause) {
+      const indent = " ".repeat(maxKwLen + 2);
+      result.push(`${indent}${line.trim()}`);
     } else {
       result.push(line);
     }
