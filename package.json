@@ -32,7 +32,6 @@
   },
   "main": "./out/extension.js",
   "activationEvents": [
-    "onCommand:sqlFormatter.formatQuery",
     "onLanguage:sql"
   ],
   "contributes": {
@@ -44,7 +43,6 @@
     ],
     "keybindings": [
       {
-        "command": "sqlFormatter.formatQuery",
         "key": "ctrl+alt+p",
         "mac": "cmd+alt+p",
         "when": "editorTextFocus"
