@@ -57,6 +57,8 @@ select id,name from users where id=1 and status='active' order by created_at des
 SELECT
   id,
   name
+  id,
+  name
 FROM users
 WHERE id = 1
   AND status = 'active'

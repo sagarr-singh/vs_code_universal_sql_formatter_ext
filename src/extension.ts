@@ -2,10 +2,11 @@ import * as vscode from 'vscode'
 import { format, SqlLanguage } from 'sql-formatter'
 
 export function activate(context: vscode.ExtensionContext) {
+export function activate(context: vscode.ExtensionContext) {
   console.log('Universal SQL Formatter activated')
 
   const formatCommand = vscode.commands.registerCommand(
-    'sqlFormatter.formatQuery',
+    "sqlFormatter.formatQuery",
     async () => {
       const editor = vscode.window.activeTextEditor
       if (!editor) {
@@ -25,6 +26,7 @@ export function activate(context: vscode.ExtensionContext) {
       if (!looksLikeSQL(text)) {
         vscode.window.showWarningMessage(
           'Selected text does not appear to be SQL query. Please select a valid SQL statement to format.'
+          'Selected text does not appear to be SQL query. Please select a valid SQL statement to format.'
         )
         return
       }
@@ -36,6 +38,7 @@ export function activate(context: vscode.ExtensionContext) {
       let formatted = ''
 
       try {
+        formatted = prettifySQL(text, dialect)
         formatted = prettifySQL(text, dialect)
       } catch (err) {
         vscode.window.showErrorMessage('SQL formatting failed')
@@ -52,7 +55,19 @@ export function activate(context: vscode.ExtensionContext) {
 
           const formatted = prettifySQL(text, dialect)
           const formattedText = postBeautify(formatted)
+      await editor.edit(editBuilder => {
+        const selections = editor.selections
 
+        selections.forEach(sel => {
+          let text = document.getText(sel)
+
+          if (!text.trim()) return
+
+          const formatted = prettifySQL(text, dialect)
+          const formattedText = postBeautify(formatted)
+
+          editBuilder.replace(sel, formattedText)
+        })
           editBuilder.replace(sel, formattedText)
         })
       })
@@ -66,11 +81,14 @@ export function activate(context: vscode.ExtensionContext) {
     'sql',
     {
       provideDocumentFormattingEdits(document) {
+      provideDocumentFormattingEdits(document) {
         const config = vscode.workspace.getConfiguration('sqlFormatter')
+        const dialect = config.get('dialect') as SqlLanguage;
         const dialect = config.get('dialect') as SqlLanguage;
 
         const text = document.getText()
 
+        const formatted = postBeautify(prettifySQL(text, dialect))
         const formatted = postBeautify(prettifySQL(text, dialect))
 
         const range = new vscode.Range(
@@ -321,6 +339,32 @@ function looksLikeSQL(text: string): boolean {
     'sum(',
     'desc',
     'asc'
+    'select ',
+    'insert ',
+    'update ',
+    'delete ',
+    'join ',
+    'from ',
+    'where ',
+    'set ',
+    'and ',
+    'or ',
+    'like ',
+    'in ',
+    'limit ',
+    'offset ',
+    'values ',
+    'left ',
+    'on ',
+    'right ',
+    'inner ',
+    'outer ',
+    'group by ',
+    'order by ',
+    'count(',
+    'sum(',
+    'desc',
+    'asc'
   ]
 
   const lower = text.toLowerCase()
@@ -328,4 +372,5 @@ function looksLikeSQL(text: string): boolean {
   return keywords.some(k => lower.includes(k))
 }
 
+export function deactivate() { }
 export function deactivate() { }
