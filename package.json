@@ -35,6 +35,8 @@
   },
   "main": "./out/extension.js",
   "activationEvents": [
+    "onCommand:sqlFormatter.formatQuery",
+    "onLanguage:sql",
     "onStartupFinished"
   ],
   "contributes": {
