@@ -224,19 +224,6 @@ function formatMultiple(text: string, dialect: SqlLanguage): string {
   return queries.map((q) => formatSql(q.trim(), dialect)).join("\n\n");
 }
 
-// ─── split multiple SQL queries from a block of text ──────────────────────────
-//
-//  Handles three separation styles:
-//    1. Semicolon-terminated:  SELECT ...;  UPDATE ...;
-//    2. Blank-line-separated:  SELECT ...\n\n UPDATE ...
-//    3. Keyword-boundary:      SELECT ... SELECT ...  (no separator at all)
-//
-//  Rules:
-//  - Semicolons INSIDE parens (subqueries, functions) are NOT treated as terminators
-//  - A new statement-start keyword (SELECT/INSERT/UPDATE/DELETE/WITH/CREATE)
-//    at paren-depth 0 after at least one clause line = new query
-//  - Blank lines between SQL content = boundary
-
 function splitMultipleQueries(text: string): string[] {
   const lines = text.split("\n");
   const chunks: string[][] = [[]];
@@ -283,10 +270,7 @@ function splitMultipleQueries(text: string): string[] {
     .filter((c) => c.length > 0 && isSql(c));
 }
 
-// ─── extract SQL from template literals / quoted strings ──────────────────────
-//
-//  Returns blocks with { sql, start, end } where start/end are offsets of the
-//  SQL content INSIDE the delimiters (so we replace only the content, not the quotes).
+//  extract SQL from template literals / quoted strings 
 
 interface DelimitedBlock {
   sql: string;
@@ -297,7 +281,7 @@ interface DelimitedBlock {
 function extractDelimitedBlocks(text: string): DelimitedBlock[] {
   const blocks: DelimitedBlock[] = [];
 
-  // ── backtick template literals  `...`  (skips ${...} expressions) ─────────
+  // backtick template literals  `...`
   let i = 0;
   while (i < text.length) {
     if (text[i] !== "`") {
@@ -328,7 +312,7 @@ function extractDelimitedBlocks(text: string): DelimitedBlock[] {
     i++;
   }
 
-  // ── double-quoted strings  "..." ──────────────────────────────────────────
+  // ── double-quoted strings  "..." 
   const dqRe = /"((?:[^"\\]|\\.)*)"/g;
   let m: RegExpExecArray | null;
   while ((m = dqRe.exec(text)) !== null) {
@@ -337,7 +321,7 @@ function extractDelimitedBlocks(text: string): DelimitedBlock[] {
       blocks.push({ sql, start: m.index + 1, end: m.index + 1 + m[1].length });
   }
 
-  // ── single-quoted strings  '...'  (only full queries, not value literals) ──
+  // ── single-quoted strings  '...'
   const sqRe = /'((?:[^'\\]|\\.)*)'/g;
   while ((m = sqRe.exec(text)) !== null) {
     const sql = m[1].trim();
@@ -345,13 +329,12 @@ function extractDelimitedBlocks(text: string): DelimitedBlock[] {
       blocks.push({ sql, start: m.index + 1, end: m.index + 1 + m[1].length });
   }
 
-  // sort by position and remove overlaps (largest block wins)
   return blocks
     .sort((a, b) => a.start - b.start)
     .filter((b, idx, arr) => idx === 0 || b.start >= arr[idx - 1].end);
 }
 
-// ─── format a single SQL query ────────────────────────────────────────────────
+// format single SQL  
 
 function formatSql(sql: string, dialect: SqlLanguage): string {
   const base = format(sql.trim(), {
@@ -373,7 +356,7 @@ function formatSql(sql: string, dialect: SqlLanguage): string {
     .trim();
 }
 
-// ─── uppercase keywords, skip string literals ─────────────────────────────────
+// ─── uppercase keywords, skip string literals
 
 function uppercaseKeywords(sql: string): string {
   const re = new RegExp(`\\b(${KEYWORDS.join("|")})\\b`, "gi");
@@ -391,7 +374,6 @@ function alignClauses(sql: string): string {
     .map((l) => l.trimStart())
     .filter((l) => l.length > 0);
 
-  // pass 1: measure longest clause keyword at depth 0
   let maxKw = 0,
     depth = 0;
   for (const line of lines) {
@@ -402,9 +384,9 @@ function alignClauses(sql: string): string {
     depth = Math.max(0, depth + countParenDelta(line));
   }
 
-  const COL = maxKw + 2; // single content column for the whole query
+  const COL = maxKw + 2; 
 
-  // pass 2: rebuild
+  // rebuild
   const out: string[] = [];
   depth = 0;
   let subqueryIndent = 0;
@@ -433,7 +415,6 @@ function alignClauses(sql: string): string {
   return out.join("\n");
 }
 
-// net open-paren count for a line, ignoring parens inside string literals
 function countParenDelta(line: string): number {
   let depth = 0,
     inStr = false;
@@ -454,7 +435,7 @@ function countParenDelta(line: string): number {
   return depth;
 }
 
-// ─── sql detection ────────────────────────────────────────────────────────────
+// sql detection
 
 function isSql(text: string): boolean {
   return /\b(select\b[\s\S]+?\bfrom\b|insert\b|insert\b|values+into\b|update\b[\s\S]+?\bset\b|delete\s+from\b|create\s+table\b)/i.test(
