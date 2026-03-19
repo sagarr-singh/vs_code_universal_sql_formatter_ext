@@ -16,17 +16,9 @@
   "keywords": [
     "sql",
     "formatter",
-    "sql-formatter",
-    "database",
     "prettier",
-    "go Prettier",
-    "python Prettier",
-    "java Prettier",
-    "format",
-    "query",
     "mysql",
     "postgres",
-    "sqlite",
     "alignment"
   ],
   "repository": {
