@@ -1,218 +1,164 @@
-# Universal SQL Formatter
+# Universal SQL Prettier
 
-Format SQL queries anywhere in your codebase with advanced formatting options and intelligent detection.
+> Format SQL queries anywhere in your codebase — inside any file type, any string delimiter, multiple selections at once.
+
+<p align="center">
+  <img src="images/recordingSql.gif" width="800" alt="Universal SQL Prettier demo"/>
+</p>
+
+---
 
 ## Features
 
-✨ **Advanced SQL Formatting** - Professional-grade SQL formatting with multiple dialects  
-🔧 **Smart Detection** - Automatically detects SQL in template literals and code blocks  
-🎨 **Customizable Options** - Extensive configuration options for perfect formatting  
-⚡ **Multi-Selection Support** - Format multiple selections simultaneously  
-🎯 **Broken SQL Repair** - Automatically fixes common SQL typos and formatting issues  
-📊 **Column Alignment** - Align SELECT columns for enhanced readability  
-🔧 **Auto-Formatting** - Format on save with configurable triggers  
+- **Vertical alignment** — every clause keyword (`SELECT`, `FROM`, `LEFT JOIN`, `ORDER BY`, …) and its content align to one straight column
+- **Works in any file** — detects and formats SQL inside `` ` `` template literals, `"..."`, `'...'` strings, and raw `.sql` files
+- **Multi-selection** — `Ctrl+Click` or `Ctrl+D` to select separate queries and format them all at once with one shortcut
+- **Multiple queries** — select a block containing several SQL statements (separated by `;`, blank lines, or stacked keywords) and each is formatted independently
+- **Keyword uppercase** — all SQL keywords are uppercased; string literal values are never touched
+- **Subquery aware** — nested `(SELECT ...)` blocks are preserved as-is inside their parentheses, not re-aligned as top-level clauses
+- **4 dialects** — PostgreSQL, MySQL, SQLite, T-SQL
 
-### Supported Dialects
-* PostgreSQL
-* MySQL
-* SQLite
-* T-SQL
-
-### Advanced Configuration Options
-* **Indent Width** - Customize indentation (1-8 spaces)
-* **Keyword Case** - Upper, lower, or preserve original case
-* **Expression Width** - Control line wrapping (40-200 characters)
-* **Logical Operators** - Position AND/OR before or after line breaks
-* **Column Alignment** - Align SELECT columns for better readability
-* **Function Compaction** - Compact function calls for cleaner code
-* **Comment Preservation** - Option to preserve SQL comments
-* **Dense Operators** - Use compact operator formatting
+---
 
 ## Demo
 
 ![Demo](images/demo.png)
 ![Demo](images/demo.gif)
 
-<p align="center">
-  <img src="images/demo.gif" width="800" alt="demo"/>
-</p>
+---
+
+## How it looks
+
+**Before**
+
+```sql
+seLECT u.id,u.name,count(o.id)as order_count,sum(o.total)as revenue from users u LEFT join orders o on u.id=o.user_id where u.status='active' and u.created_at > '2024-01-01' group by u.id,u.name order by revenue desc limit 10 offset 20
+```
+
+**After**
+
+```sql
+SELECT      u.id,
+            u.name,
+            COUNT(o.id)  AS order_count,
+            SUM(o.total) AS revenue
+FROM        users u
+LEFT JOIN   orders o
+ON          u.id = o.user_id
+WHERE       u.status = 'active'
+  AND       u.created_at > '2024-01-01'
+GROUP BY    u.id,
+            u.name
+ORDER BY    revenue DESC
+LIMIT       10
+OFFSET      20
+```
+
+**Subquery — stays intact**
+
+```sql
+SELECT    json_build_object(
+            'loans', (
+              SELECT COALESCE(json_agg(bl), '[]'::json)
+              FROM loans.borrower_loans bl
+              WHERE bl.customer_id = c.id
+            )
+          ) AS data
+FROM      customers.customers c
+ORDER BY  c.updated_at DESC
+LIMIT     ?
+OFFSET    ?
+```
+
+---
+
+## Usage
+
+### Format a single selection
+
+1. Select any SQL text (raw query, template literal, quoted string)
+2. Press `Ctrl+Alt+P` (Mac: `Cmd+Alt+P`)
+
+### Format multiple separate queries
+
+1. `Ctrl+Click` or `Ctrl+D` to add selections on each query you want
+2. Press `Ctrl+Alt+P` — each selection is formatted independently
+
+### Format a block with several queries
+
+Select a block containing multiple statements separated by `;`, blank lines, or just stacked — all are detected and formatted individually.
+
+### Format an entire `.sql` file
+
+Use VS Code's built-in `Shift+Alt+F` (Format Document) — works automatically on `.sql` files.
+
+### Right-click
+
+Right-click anywhere in the editor → **SQL: Format Query**
+
+---
+
+## Supported string contexts
+
+| Context                   | Example                                |
+| ------------------------- | -------------------------------------- |
+| Backtick template literal | `` const q = `SELECT * FROM users` ``  |
+| Double-quoted string      | `query = "SELECT * FROM users"`        |
+| Single-quoted string      | `query = 'SELECT * FROM users'`        |
+| Raw `.sql` file           | entire file formatted on `Shift+Alt+F` |
+| Plain selected text       | select any SQL and press `Ctrl+Alt+P`  |
+
+---
 
 ## Commands
 
-| Command                    | Shortcut        | Description                          |
-| -------------------------- | --------------- | ------------------------------------ |
-| Format SQL Query           | Ctrl + Alt + P  | Format selected SQL or current query |
-| Format Document            | Shift + Alt + F | Format entire SQL document           |
-| Format SQL Document        | -               | Alternative document formatting      |
+| Command           | Shortcut                   | Description                                          |
+| ----------------- | -------------------------- | ---------------------------------------------------- |
+| SQL: Format Query | `Ctrl+Alt+P` / `Cmd+Alt+P` | Format selection, multiple selections, or whole file |
 
-## Example
-
-### Before:
-```sql
-select id,name from users where id=1 and status='active' order by created_at desc limit 10
-```
-
-### After:
-```sql
-SELECT
-  id,
-  name
-  id,
-  name
-FROM users
-WHERE id = 1
-  AND status = 'active'
-ORDER BY created_at DESC
-LIMIT 10
-```
-
-### Complex Query Example:
-
-**Before:**
-```sql
-select u.id,u.name,count(o.id)as order_count,avg(o.total)as avg_order from users u left join orders o on u.id=o.user_id where u.created_at>='2023-01-01' group by u.id,u.name having count(o.id)>5 order by avg_order desc limit 20
-```
-
-**After:**
-```sql
-SELECT
-  u.id,
-  u.name,
-  COUNT(o.id) AS order_count,
-  AVG(o.total) AS avg_order
-FROM users u
-LEFT JOIN orders o
-  ON u.id = o.user_id
-WHERE u.created_at >= '2023-01-01'
-GROUP BY u.id, u.name
-HAVING COUNT(o.id) > 5
-ORDER BY avg_order DESC
-LIMIT 20
-```
+---
 
 ## Configuration
-
-Configure the extension through VS Code settings:
 
 ```json
 {
   "sqlFormatter.dialect": "postgresql",
-  "sqlFormatter.formatOnSave": true,
-  "sqlFormatter.indentWidth": 2,
-  "sqlFormatter.keywordCase": "upper",
-  "sqlFormatter.expressionWidth": 80,
-  "sqlFormatter.logicalOperatorNewline": "before",
-  "sqlFormatter.linesBetweenQueries": 1,
-  "sqlFormatter.denseOperators": true,
-  "sqlFormatter.alignSelectColumns": true,
-  "sqlFormatter.compactFunctions": true,
-  "sqlFormatter.preserveComments": false
+  "sqlFormatter.formatOnSave": false,
+  "sqlFormatter.keywordCase": "upper"
 }
 ```
 
-### Configuration Options
+| Setting        | Type    | Default        | Options                              | Description                    |
+| -------------- | ------- | -------------- | ------------------------------------ | ------------------------------ |
+| `dialect`      | string  | `"postgresql"` | `postgresql` `mysql` `sqlite` `tsql` | SQL dialect                    |
+| `formatOnSave` | boolean | `false`        | —                                    | Auto-format SQL blocks on save |
+| `keywordCase`  | string  | `"upper"`      | `upper` `lower` `preserve`           | Case applied to SQL keywords   |
 
-| Setting                      | Type    | Default | Description                                    |
-| ---------------------------- | ------- | ------- | ---------------------------------------------- |
-| `dialect`                    | string  | "postgresql" | SQL dialect (postgresql/mysql/sqlite/tsql) |
-| `formatOnSave`               | boolean | false   | Auto-format SQL files on save                  |
-| `indentWidth`                | number  | 2       | Number of spaces for indentation (1-8)         |
-| `keywordCase`                | string  | "upper" | Keyword case: upper/lower/preserve             |
-| `expressionWidth`            | number  | 80      | Max width before wrapping (40-200)             |
-| `logicalOperatorNewline`     | string  | "before" | AND/OR position: before/after                  |
-| `linesBetweenQueries`        | number  | 1       | Blank lines between queries (0-5)              |
-| `denseOperators`             | boolean | true    | Use dense operator formatting                  |
-| `alignSelectColumns`         | boolean | true    | Align SELECT column names                      |
-| `compactFunctions`           | boolean | true    | Compact function calls                         |
-| `preserveComments`           | boolean | false   | Preserve SQL comments                          |
-
-## Usage
-
-### Formatting SQL in Code
-
-The extension automatically detects SQL in various contexts:
-
-**Template Literals (JavaScript/TypeScript):**
-```javascript
-const query = `
-  select id, name from users where active = true
-`;
-```
-
-**String Literals:**
-```python
-query = "select id, name from users where active = true"
-```
-
-**Multi-line Strings:**
-```python
-query = """
-    select id, name 
-    from users 
-    where active = true
-"""
-```
-
-### Selection-Based Formatting
-
-1. **Single Selection**: Select SQL text and press `Ctrl+Alt+P`
-2. **Multiple Selections**: Use multiple cursors to format several SQL blocks at once
-3. **Document Formatting**: Use `Shift+Alt+F` to format entire SQL files
-
-### Smart Detection
-
-The extension uses intelligent pattern matching to detect SQL:
-
-- **Keyword Analysis**: Detects SQL keywords, functions, and operators
-- **Pattern Matching**: Recognizes common SQL structures
-- **Context Awareness**: Works in template literals, strings, and comments
-- **Fallback Prompt**: Asks before formatting if SQL detection is uncertain
-
-## Error Handling
-
-The extension provides comprehensive error handling:
-
-- **Syntax Validation**: Validates SQL syntax before formatting
-- **Graceful Degradation**: Continues working even with minor issues
-- **User Feedback**: Clear error messages for troubleshooting
-- **Recovery Options**: Suggests alternatives when formatting fails
-
-## Performance
-
-- **Optimized Processing**: Efficient handling of large SQL files
-- **Incremental Formatting**: Only processes changed sections when possible
-- **Memory Management**: Proper cleanup and resource management
-- **Responsive UI**: Non-blocking operations for better user experience
-
-<!-- ## Contributing -->
-
-<!-- Contributions are welcome! Please read our [contribution guidelines](CONTRIBUTING.md) before submitting pull requests. -->
-
-## License
-
-MIT License - see [LICENSE](LICENSE) file for details.
-
-## Support
-
-For issues, questions, or feature requests:
-
-1. Check the [FAQ](#faq) section
-2. Search existing [issues](https://github.com/sagarr-singh/vs_code_universal_sql_formatter_ext/issues)
-3. Create a new [issue](https://github.com/sagarr-singh/vs_code_universal_sql_formatter_ext/issues/new) with details
+---
 
 ## FAQ
 
-**Q: Why isn't my SQL being formatted?**
-A: The extension uses smart detection. If it's uncertain, it will prompt you. Try selecting the text manually or check if your SQL contains recognizable keywords.
+**My SQL isn't being formatted.**
+Make sure the selected text contains a recognisable SQL statement (`SELECT … FROM`, `INSERT INTO`, `UPDATE … SET`, `DELETE FROM`, or `CREATE TABLE`). If it doesn't match, a warning is shown.
 
-**Q: Can I format SQL in non-SQL files?**
-A: Yes! The extension works in any file type and can detect SQL in template literals, strings, and comments.
+**Subqueries are being exploded onto separate lines.**
+Update to the latest version — subquery-aware formatting (paren-depth tracking) was added to prevent this.
 
-**Q: How do I preserve my custom formatting?**
-A: Use the `preserveComments` setting and choose `preserve` for `keywordCase` to maintain your formatting style.
+**Can I format SQL in Go / Python / Java files?**
+Yes. Select the SQL string (with or without the surrounding quotes/backticks) and press `Ctrl+Alt+P`.
 
-**Q: Why are my function calls being compacted?**
-A: This is the default behavior for cleaner code. Disable `compactFunctions` in settings to preserve original spacing.
+**Will `Shift+Alt+F` work on non-SQL files?**
+No — the built-in Format Document provider is registered for `.sql` files only. Use `Ctrl+Alt+P` for other file types.
 
-**Q: Can I use this with other SQL extensions?**
-A: Yes, but you may need to disable conflicting formatters to avoid conflicts.
+**I have multiple queries in one selection — will both be formatted?**
+Yes. Queries separated by `;`, a blank line, or a new statement keyword at the top level are each formatted independently and joined back with a blank line between them.
+
+---
+
+## License
+
+MIT — see [LICENSE](LICENSE)
+
+## Issues & Requests
+
+[github.com/sagarr-singh/vs_code_universal_sql_formatter_ext/issues](https://github.com/sagarr-singh/vs_code_universal_sql_formatter_ext/issues)

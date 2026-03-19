@@ -16,173 +16,94 @@
   "keywords": [
     "sql",
     "formatter",
+    "sql-formatter",
     "database",
     "prettier",
+    "go Prettier",
+    "python Prettier",
+    "java Prettier",
+    "format",
     "query",
     "mysql",
     "postgres",
-    "embedded sql",
-    "template literal"
+    "sqlite",
+    "alignment"
   ],
   "repository": {
     "type": "git",
     "url": "https://github.com/sagarr-singh/vs_code_universal_sql_formatter_ext.git"
   },
-  "homepage": "https://github.com/sagarr-singh/vs_code_universal_sql_formatter_ext",
-  "bugs": {
-    "url": "https://github.com/sagarr-singh/vs_code_universal_sql_formatter_ext/issues"
-  },
   "main": "./out/extension.js",
-
   "activationEvents": [
     "onStartupFinished"
   ],
-
   "contributes": {
     "commands": [
       {
         "command": "sqlFormatter.formatQuery",
-        "title": "SQL: Format Query (Selection or File)"
-      },
-      {
-        "command": "sqlFormatter.formatDocument",
-        "title": "SQL: Format Document"
-      },
-      {
-        "command": "sqlFormatter.formatEmbeddedSql",
-        "title": "SQL: Format All Embedded SQL Blocks"
+        "title": "SQL: Format Query"
       }
     ],
-
     "keybindings": [
       {
         "command": "sqlFormatter.formatQuery",
         "key": "ctrl+alt+p",
         "mac": "cmd+alt+p",
         "when": "editorTextFocus"
-      },
-      {
-        "command": "sqlFormatter.formatEmbeddedSql",
-        "key": "ctrl+alt+shift+p",
-        "mac": "cmd+alt+shift+p",
-        "when": "editorTextFocus"
       }
     ],
-
-    "languages": [
-      {
-        "id": "sql",
-        "aliases": ["SQL"],
-        "extensions": [".sql"]
-      }
-    ],
-
     "menus": {
       "editor/context": [
         {
           "command": "sqlFormatter.formatQuery",
           "when": "editorTextFocus",
           "group": "1_modification@1"
-        },
-        {
-          "command": "sqlFormatter.formatEmbeddedSql",
-          "when": "editorTextFocus && resourceLangId != sql",
-          "group": "1_modification@2"
-        }
-      ],
-      "commandPalette": [
-        {
-          "command": "sqlFormatter.formatQuery",
-          "when": "editorIsOpen"
-        },
-        {
-          "command": "sqlFormatter.formatDocument",
-          "when": "editorIsOpen"
-        },
-        {
-          "command": "sqlFormatter.formatEmbeddedSql",
-          "when": "editorIsOpen"
         }
       ]
     },
-
+    "languages": [
+      {
+        "id": "sql",
+        "aliases": [
+          "SQL"
+        ],
+        "extensions": [
+          ".sql"
+        ]
+      }
+    ],
     "configuration": {
       "title": "Universal SQL Prettier",
       "properties": {
         "sqlFormatter.dialect": {
           "type": "string",
           "default": "postgresql",
-          "enum": ["mysql", "postgresql", "sqlite", "tsql"],
-          "enumDescriptions": [
-            "MySQL / MariaDB",
-            "PostgreSQL (default)",
-            "SQLite",
-            "T-SQL (SQL Server / Azure)"
+          "enum": [
+            "mysql",
+            "postgresql",
+            "sqlite",
+            "tsql"
           ],
-          "description": "SQL dialect used for formatting"
+          "description": "SQL dialect"
         },
         "sqlFormatter.formatOnSave": {
           "type": "boolean",
           "default": false,
-          "description": "Automatically format SQL blocks when saving any file"
-        },
-        "sqlFormatter.indentWidth": {
-          "type": "number",
-          "default": 2,
-          "minimum": 1,
-          "maximum": 8,
-          "description": "Number of spaces for indentation"
+          "description": "Auto-format SQL blocks on save"
         },
         "sqlFormatter.keywordCase": {
           "type": "string",
           "default": "upper",
-          "enum": ["upper", "lower", "preserve"],
-          "description": "Case for SQL keywords (SELECT, FROM, WHERE, …)"
-        },
-        "sqlFormatter.expressionWidth": {
-          "type": "number",
-          "default": 80,
-          "minimum": 40,
-          "maximum": 200,
-          "description": "Maximum character width before an expression wraps to the next line"
-        },
-        "sqlFormatter.logicalOperatorNewline": {
-          "type": "string",
-          "default": "before",
-          "enum": ["before", "after"],
-          "description": "Place AND / OR at the start ('before') or end ('after') of a line"
-        },
-        "sqlFormatter.linesBetweenQueries": {
-          "type": "number",
-          "default": 1,
-          "minimum": 0,
-          "maximum": 5,
-          "description": "Blank lines inserted between consecutive SQL statements"
-        },
-        "sqlFormatter.denseOperators": {
-          "type": "boolean",
-          "default": true,
-          "description": "Use compact spacing around arithmetic operators"
-        },
-        "sqlFormatter.alignSelectColumns": {
-          "type": "boolean",
-          "default": true,
-          "description": "Align AS aliases in SELECT lists for better readability"
-        },
-        "sqlFormatter.compactFunctions": {
-          "type": "boolean",
-          "default": true,
-          "description": "Remove unnecessary whitespace inside function call parentheses"
-        },
-        "sqlFormatter.preserveComments": {
-          "type": "boolean",
-          "default": true,
-          "description": "Preserve SQL comments (-- and /* */) during formatting"
+          "enum": [
+            "upper",
+            "lower",
+            "preserve"
+          ],
+          "description": "Keyword case"
         }
       }
     }
   },
-
   "scripts": {
     "vscode:prepublish": "npm run compile",
     "compile": "tsc -p ./",

@@ -1,210 +1,362 @@
-import * as vscode from 'vscode'
-import { format, SqlLanguage } from 'sql-formatter'
+import * as vscode from "vscode";
+import { format, SqlLanguage } from "sql-formatter";
 
-export function activate(context: vscode.ExtensionContext) {
-export function activate(context: vscode.ExtensionContext) {
-  console.log('Universal SQL Formatter activated')
-
-  const formatCommand = vscode.commands.registerCommand(
-    "sqlFormatter.formatQuery",
-    async () => {
-      const editor = vscode.window.activeTextEditor
-      if (!editor) {
-        vscode.window.showErrorMessage('No active editor found')
-        return
-      }
-
-      const document = editor.document
-      const selection = editor.selection
-
-      let text = document.getText(selection)
-
-      if (!text) {
-        text = document.getText()
-      }
-
-      if (!looksLikeSQL(text)) {
-        vscode.window.showWarningMessage(
-          'Selected text does not appear to be SQL query. Please select a valid SQL statement to format.'
-          'Selected text does not appear to be SQL query. Please select a valid SQL statement to format.'
-        )
-        return
-      }
-
-      const config = vscode.workspace.getConfiguration('sqlFormatter')
-      const dialect = (config.get<string>('dialect') ||
-        'postgresql') as SqlLanguage
-
-      let formatted = ''
-
-      try {
-        formatted = prettifySQL(text, dialect)
-        formatted = prettifySQL(text, dialect)
-      } catch (err) {
-        vscode.window.showErrorMessage('SQL formatting failed')
-        return
-      }
-
-      await editor.edit(editBuilder => {
-        const selections = editor.selections
-
-        selections.forEach(sel => {
-          let text = document.getText(sel)
-
-          if (!text.trim()) return
-
-          const formatted = prettifySQL(text, dialect)
-          const formattedText = postBeautify(formatted)
-      await editor.edit(editBuilder => {
-        const selections = editor.selections
-
-        selections.forEach(sel => {
-          let text = document.getText(sel)
-
-          if (!text.trim()) return
-
-          const formatted = prettifySQL(text, dialect)
-          const formattedText = postBeautify(formatted)
-
-          editBuilder.replace(sel, formattedText)
-        })
-          editBuilder.replace(sel, formattedText)
-        })
-      })
-    }
-  )
-
-  context.subscriptions.push(formatCommand)
-
-  // FORMAT DOCUMENT (.sql files)
-  const sqlFormatter = vscode.languages.registerDocumentFormattingEditProvider(
-    'sql',
-    {
-      provideDocumentFormattingEdits(document) {
-      provideDocumentFormattingEdits(document) {
-        const config = vscode.workspace.getConfiguration('sqlFormatter')
-        const dialect = config.get('dialect') as SqlLanguage;
-        const dialect = config.get('dialect') as SqlLanguage;
-
-        const text = document.getText()
-
-        const formatted = postBeautify(prettifySQL(text, dialect))
-        const formatted = postBeautify(prettifySQL(text, dialect))
-
-        const range = new vscode.Range(
-          document.positionAt(0),
-          document.positionAt(text.length)
-        )
-
-        return [vscode.TextEdit.replace(range, formatted)]
-      }
-    }
-  )
-
-  context.subscriptions.push(sqlFormatter)
-}
-
-
-const SQL_KEYWORDS = [
-  "SELECT", "FROM", "WHERE", "JOIN", "LEFT", "RIGHT", "INNER", "OUTER",
-  "FULL", "CROSS", "ON", "AND", "OR", "NOT", "IN", "IS", "NULL", "AS",
-  "INSERT", "INTO", "VALUES", "UPDATE", "SET", "DELETE", "CREATE", "TABLE",
-  "DROP", "ALTER", "INDEX", "VIEW", "GROUP", "BY", "ORDER", "HAVING",
-  "LIMIT", "OFFSET", "UNION", "ALL", "DISTINCT", "CASE", "WHEN", "THEN",
-  "ELSE", "END", "EXISTS", "BETWEEN", "LIKE", "ASC", "DESC", "WITH",
-  "COUNT", "SUM", "AVG", "MIN", "MAX", "COALESCE", "NULLIF", "CAST",
-  "NOW", "INTERVAL",
+// longest-first so "ORDER BY" always wins over "ORDER" or "BY"
+const CLAUSES = [
+  "ORDER BY",
+  "GROUP BY",
+  "LEFT JOIN",
+  "RIGHT JOIN",
+  "INNER JOIN",
+  "FULL OUTER JOIN",
+  "FULL JOIN",
+  "CROSS JOIN",
+  "INSERT INTO",
+  "DELETE FROM",
+  "UNION ALL",
+  "SELECT",
+  "FROM",
+  "WHERE",
+  "JOIN",
+  "ON",
+  "HAVING",
+  "LIMIT",
+  "OFFSET",
+  "SET",
+  "UPDATE",
+  "DELETE",
+  "INSERT",
+  "VALUES",
+  "WITH",
+  "UNION",
+  "INTERSECT",
+  "EXCEPT",
+  "RETURNING",
 ];
 
-function uppercaseSQL(sql: string): string {
-  // Sort longest-first so "GROUP BY" matches before "GROUP" or "BY" alone
-  const sorted = [...SQL_KEYWORDS].sort((a, b) => b.length - a.length);
+const KEYWORDS = [
+  "SELECT",
+  "FROM",
+  "WHERE",
+  "JOIN",
+  "LEFT",
+  "RIGHT",
+  "INNER",
+  "OUTER",
+  "FULL",
+  "CROSS",
+  "ON",
+  "AND",
+  "OR",
+  "NOT",
+  "IN",
+  "IS",
+  "NULL",
+  "AS",
+  "INSERT",
+  "INTO",
+  "VALUES",
+  "UPDATE",
+  "SET",
+  "DELETE",
+  "CREATE",
+  "TABLE",
+  "DROP",
+  "ALTER",
+  "INDEX",
+  "VIEW",
+  "GROUP",
+  "BY",
+  "ORDER",
+  "HAVING",
+  "LIMIT",
+  "OFFSET",
+  "UNION",
+  "ALL",
+  "DISTINCT",
+  "CASE",
+  "WHEN",
+  "THEN",
+  "ELSE",
+  "END",
+  "EXISTS",
+  "BETWEEN",
+  "LIKE",
+  "ASC",
+  "DESC",
+  "WITH",
+  "COUNT",
+  "SUM",
+  "AVG",
+  "MIN",
+  "MAX",
+  "COALESCE",
+  "NULLIF",
+  "CAST",
+  "NOW",
+  "INTERVAL",
+  "RETURNING",
+];
 
-  // Build one regex: \b(KEYWORD1|KEYWORD2|...)\b, case-insensitive
-  const pattern = new RegExp(
-    `\\b(${sorted.join("|")})\\b`,
-    "gi"
-  );
+const CLAUSE_RE = new RegExp(
+  `^(${CLAUSES.map((k) => k.replace(/ /g, "\\s+")).join("|")})(?=\\s|$)`,
+  "i",
+);
 
-  // Only uppercase tokens that are NOT inside single-quoted string literals
-  const parts = sql.split(/('(?:[^'\\]|\\.)*')/g);
+// statement-starting keywords — used to detect where a new query begins
+const STMT_START_RE =
+  /^\s*(SELECT|INSERT|UPDATE|DELETE|WITH|CREATE|WHERE|VALUES|DROP|ALTER|TRUNCATE)\b/i;
 
-  return parts
-    .map((part, i) =>
-      // Even indices are SQL text; odd indices are quoted string values — leave those alone
-      i % 2 === 0 ? part.replace(pattern, (m) => m.toUpperCase()) : part
-    )
-    .join("");
+// ─── activation 
+
+export function activate(context: vscode.ExtensionContext) {
+  context.subscriptions.push(
+    vscode.commands.registerCommand('sqlFormatter.formatQuery', async () => {
+      const editor = vscode.window.activeTextEditor
+      if (!editor) return
+ 
+      const doc     = editor.document
+      const dialect = (
+        vscode.workspace.getConfiguration('sqlFormatter').get<string>('dialect') ?? 'postgresql'
+      ) as SqlLanguage
+ 
+      // editor.selections contains ALL active selections —
+      // one for a normal selection, many for multi-cursor (Ctrl+D / Ctrl+Click)
+      const selections = editor.selections
+ 
+      // ── no selection at all → format entire document ──────────────────────
+      if (selections.length === 1 && selections[0].isEmpty) {
+        const raw = doc.getText()
+        if (!isSql(raw.trim())) {
+          vscode.window.showWarningMessage('No SQL found in file.')
+          return
+        }
+        try {
+          const result = formatMultiple(raw, dialect)
+          await editor.edit(eb =>
+            eb.replace(new vscode.Range(doc.positionAt(0), doc.positionAt(raw.length)), result)
+          )
+          vscode.window.showInformationMessage('Formatted.')
+        } catch (e) {
+          vscode.window.showErrorMessage(`SQL formatting failed: ${e}`)
+        }
+        return
+      }
+ 
+      // ── one or more selections (including multi-cursor) ───────────────────
+      // Sort selections in REVERSE document order so replacing one range
+      // doesn't shift the offsets of selections that come before it.
+      const sorted = [...selections]
+        .filter(s => !s.isEmpty)                             
+        .sort((a, b) => b.start.compareTo(a.start))         
+ 
+      if (sorted.length === 0) {
+        vscode.window.showWarningMessage('No text selected.')
+        return
+      }
+ 
+      let formattedCount = 0
+      let skippedCount   = 0
+ 
+      try {
+        // single edit builder — applies ALL replacements atomically
+        await editor.edit(eb => {
+          for (const sel of sorted) {
+            const raw = doc.getText(sel)
+ 
+            // check for delimited blocks inside this selection (backtick / " / ')
+            const delimited = extractDelimitedBlocks(raw)
+            if (delimited.length > 0) {
+              let rebuilt = raw
+              for (let i = delimited.length - 1; i >= 0; i--) {
+                const b         = delimited[i]
+                const formatted = formatMultiple(b.sql, dialect)
+                rebuilt         = rebuilt.slice(0, b.start) + formatted + rebuilt.slice(b.end)
+              }
+              eb.replace(sel, rebuilt)
+              formattedCount += delimited.length
+              continue
+            }
+ 
+            // plain SQL text selected directly
+            if (!isSql(raw.trim())) {
+              skippedCount++
+              continue
+            }
+ 
+            eb.replace(sel, formatMultiple(raw, dialect))
+            formattedCount += splitMultipleQueries(raw).length
+          }
+        })
+ 
+        // status message
+        if (formattedCount === 0 && skippedCount > 0) {
+          vscode.window.showWarningMessage('Selected text does not appear to be SQL.')
+        } else {
+          const msg = formattedCount > 1
+            ? `Formatted ${formattedCount} queries across ${sorted.length} selection(s).`
+            : 'Formatted.'
+          vscode.window.showInformationMessage(msg)
+        }
+      } catch (e) {
+        vscode.window.showErrorMessage(`SQL formatting failed: ${e}`)
+      }
+    })
+  )
+ 
+  // built-in format document — .sql files
+  context.subscriptions.push(
+    vscode.languages.registerDocumentFormattingEditProvider('sql', {
+      provideDocumentFormattingEdits(doc) {
+        const dialect = vscode.workspace
+          .getConfiguration('sqlFormatter').get<string>('dialect') as SqlLanguage
+        const text  = doc.getText()
+        const range = new vscode.Range(doc.positionAt(0), doc.positionAt(text.length))
+        return [vscode.TextEdit.replace(range, formatMultiple(text, dialect))]
+      },
+    })
+  )
 }
 
-function alignColumns(sql: string): string {
-  const lines = sql.split("\n");
-  const result = [...lines];
-  let inSelect = false;
-  let blockStart = -1;
+
+function formatMultiple(text: string, dialect: SqlLanguage): string {
+  const queries = splitMultipleQueries(text);
+  return queries.map((q) => formatSql(q.trim(), dialect)).join("\n\n");
+}
+
+// ─── split multiple SQL queries from a block of text ──────────────────────────
+//
+//  Handles three separation styles:
+//    1. Semicolon-terminated:  SELECT ...;  UPDATE ...;
+//    2. Blank-line-separated:  SELECT ...\n\n UPDATE ...
+//    3. Keyword-boundary:      SELECT ... SELECT ...  (no separator at all)
+//
+//  Rules:
+//  - Semicolons INSIDE parens (subqueries, functions) are NOT treated as terminators
+//  - A new statement-start keyword (SELECT/INSERT/UPDATE/DELETE/WITH/CREATE)
+//    at paren-depth 0 after at least one clause line = new query
+//  - Blank lines between SQL content = boundary
+
+function splitMultipleQueries(text: string): string[] {
+  const lines = text.split("\n");
+  const chunks: string[][] = [[]];
+  let depth = 0;
 
   for (let i = 0; i < lines.length; i++) {
-    const upper = lines[i].trim().toUpperCase();
+    const line = lines[i];
+    const trimmed = line.trim();
 
-    if (/^SELECT\b/.test(upper)) {
-      inSelect = true;
-      blockStart = i + 1;
+    // blank line at depth 0 = separator
+    if (trimmed === "" && depth === 0) {
+      if (chunks[chunks.length - 1].length > 0) chunks.push([]);
       continue;
     }
 
-    if (inSelect && /^(FROM|WHERE|GROUP|ORDER|HAVING|LIMIT|UNION|;)\b/.test(upper)) {
-      applyAlignment(result, blockStart, i);
-      inSelect = false;
-      blockStart = -1;
+    // semicolon at end of line at depth 0 = end of statement
+    if (trimmed.endsWith(";") && depth === 0) {
+      chunks[chunks.length - 1].push(line);
+      chunks.push([]);
+      depth = 0;
+      continue;
     }
+
+    // new statement keyword at depth 0, after we already have content = new chunk
+    const currentChunk = chunks[chunks.length - 1];
+    if (
+      depth === 0 &&
+      currentChunk.length > 0 &&
+      STMT_START_RE.test(trimmed) &&
+      // make sure current chunk actually has SQL (not just blank lines)
+      currentChunk.some((l) => l.trim().length > 0)
+    ) {
+      chunks.push([]);
+    }
+
+    chunks[chunks.length - 1].push(line);
+
+    // track paren depth so we don't split on semicolons/keywords inside subqueries
+    depth = Math.max(0, depth + countParenDelta(line));
   }
 
-  // Handle SELECT at end of string (no trailing clause)
-  if (inSelect && blockStart > -1) {
-    applyAlignment(result, blockStart, lines.length);
-  }
-
-  return result.join("\n");
+  return chunks
+    .map((c) => c.join("\n").trim())
+    .filter((c) => c.length > 0 && isSql(c));
 }
 
-function applyAlignment(lines: string[], start: number, end: number): void {
-  const indices: number[] = [];
-  const entries: { indent: string; expr: string; alias: string; tail: string }[] = [];
+// ─── extract SQL from template literals / quoted strings ──────────────────────
+//
+//  Returns blocks with { sql, start, end } where start/end are offsets of the
+//  SQL content INSIDE the delimiters (so we replace only the content, not the quotes).
 
-  for (let i = start; i < end; i++) {
-    const line = lines[i];
-    const trimmed = line.trim();
-    if (!trimmed || trimmed.startsWith("--")) continue;
-
-    // Match:  <indent><expr> AS <alias>[,][-- comment]
-    const m = line.match(
-      /^(\s*)([\w."*()\[\]]+(?:\s*\.\s*[\w."*()\[\]]+)*)\s+(AS\s+\w+)(,?)(\s*--.*)?$/i
-    );
-    if (m) {
-      indices.push(i);
-      entries.push({
-        indent: m[1],
-        expr:   m[2],
-        alias:  m[3],
-        tail:   (m[4] ?? "") + (m[5] ?? ""),
-      });
-    }
-  }
-
-  if (entries.length < 2) return; // Nothing to align
-
-  const maxLen = Math.max(...entries.map((e) => e.expr.length));
-
-  entries.forEach((e, idx) => {
-    const pad = " ".repeat(maxLen - e.expr.length + 1);
-    lines[indices[idx]] = `${e.indent}${e.expr}${pad}${e.alias}${e.tail}`;
-  });
+interface DelimitedBlock {
+  sql: string;
+  start: number;
+  end: number;
 }
 
-function prettifySQL(text: string, dialect: SqlLanguage): string {
-  const formatted = format(text.trim(), {
+function extractDelimitedBlocks(text: string): DelimitedBlock[] {
+  const blocks: DelimitedBlock[] = [];
+
+  // ── backtick template literals  `...`  (skips ${...} expressions) ─────────
+  let i = 0;
+  while (i < text.length) {
+    if (text[i] !== "`") {
+      i++;
+      continue;
+    }
+    const start = i + 1;
+    i++;
+    let depth = 0;
+    while (i < text.length) {
+      if (text[i] === "$" && text[i + 1] === "{") {
+        depth++;
+        i += 2;
+        continue;
+      }
+      if (text[i] === "}" && depth > 0) {
+        depth--;
+        i++;
+        continue;
+      }
+      if (text[i] === "`" && depth === 0) {
+        break;
+      }
+      i++;
+    }
+    const sql = text.slice(start, i).trim();
+    if (isSql(sql)) blocks.push({ sql, start, end: i });
+    i++;
+  }
+
+  // ── double-quoted strings  "..." ──────────────────────────────────────────
+  const dqRe = /"((?:[^"\\]|\\.)*)"/g;
+  let m: RegExpExecArray | null;
+  while ((m = dqRe.exec(text)) !== null) {
+    const sql = m[1].trim();
+    if (isSql(sql))
+      blocks.push({ sql, start: m.index + 1, end: m.index + 1 + m[1].length });
+  }
+
+  // ── single-quoted strings  '...'  (only full queries, not value literals) ──
+  const sqRe = /'((?:[^'\\]|\\.)*)'/g;
+  while ((m = sqRe.exec(text)) !== null) {
+    const sql = m[1].trim();
+    if (isSql(sql))
+      blocks.push({ sql, start: m.index + 1, end: m.index + 1 + m[1].length });
+  }
+
+  // sort by position and remove overlaps (largest block wins)
+  return blocks
+    .sort((a, b) => a.start - b.start)
+    .filter((b, idx, arr) => idx === 0 || b.start >= arr[idx - 1].end);
+}
+
+// ─── format a single SQL query ────────────────────────────────────────────────
+
+function formatSql(sql: string, dialect: SqlLanguage): string {
+  const base = format(sql.trim(), {
     language: dialect,
-    keywordCase: "upper",   // sql-formatter handles initial casing
+    keywordCase: "upper",
     indentStyle: "standard",
     logicalOperatorNewline: "before",
     linesBetweenQueries: 1,
@@ -213,9 +365,7 @@ function prettifySQL(text: string, dialect: SqlLanguage): string {
     denseOperators: true,
   });
 
-  // uppercaseSQL catches any keyword sql-formatter missed (e.g. inside expressions)
-  // alignColumns aligns the AS aliases into a clean vertical line
-  return alignColumns(uppercaseSQL(formatted))
+  return alignClauses(uppercaseKeywords(base))
     .split("\n")
     .map((l) => l.trimEnd())
     .join("\n")
@@ -223,154 +373,93 @@ function prettifySQL(text: string, dialect: SqlLanguage): string {
     .trim();
 }
 
-function postBeautify(sql: string): string {
-  return (
-    sql
-      // keep LIMIT OFFSET together
-      .replace(/LIMIT\s*\n\s*(\?)/g, 'LIMIT $1')
-      .replace(/OFFSET\s*\n\s*(\?)/g, 'OFFSET $1')
+// ─── uppercase keywords, skip string literals ─────────────────────────────────
 
-      // keep WHERE conditions inline
-      .replace(/WHERE\s*\n\s*/g, 'WHERE ')
-
-      // keep ORDER BY inline
-      .replace(/ORDER BY\s*\n\s*/g, 'ORDER BY ')
-
-      // keep FROM inline
-      .replace(/FROM\s*\n\s*/g, 'FROM ')
-
-      // compact function calls
-      .replace(/\(\s*\n\s*/g, '(')
-      .replace(/\n\s*\)/g, ')')
-
-      // remove excessive blank lines
-      .replace(/\n{3,}/g, '\n\n')
-
-      // remove trailing semicolon
-      .replace(/;\s*$/, '')
-
-      // remove trailing spaces
-      .replace(/[ \t]+$/gm, '')
-  )
+function uppercaseKeywords(sql: string): string {
+  const re = new RegExp(`\\b(${KEYWORDS.join("|")})\\b`, "gi");
+  return sql
+    .split(/('(?:[^'\\]|\\.)*')/g)
+    .map((part, i) =>
+      i % 2 === 0 ? part.replace(re, (m) => m.toUpperCase()) : part,
+    )
+    .join("");
 }
 
-function cleanupSQL(text: string): string {
-  text = text.trim()
+function alignClauses(sql: string): string {
+  const lines = sql
+    .split("\n")
+    .map((l) => l.trimStart())
+    .filter((l) => l.length > 0);
 
-  // normalize whitespace
-  text = text.replace(/\s+/g, ' ')
-
-  const keywordFixes: Record<string, string> = {
-    'se lect': 'select',
-    'sel ect': 'select',
-    'fr om': 'from',
-    'wh ere': 'where',
-    'gro up by': 'group by',
-    'ord er by': 'order by',
-    'ins ert': 'insert',
-    'upd ate': 'update',
-    'del ete': 'delete',
-    'jo in': 'join',
-    'li mit': 'limit',
-    'of fset': 'offset',
-    'va lue': 'value',
-    'va lues': 'values',
-    'va lue s': 'values',
-    'le ft': 'left',
-    'ri ght': 'right',
-    'in ner': 'inner',
-    'ou ter': 'outer',
-    'le ft join': 'left join',
-    'ri ght join': 'right join',
-    'in ner join': 'inner join',
-    'ou ter join': 'outer join'
+  // pass 1: measure longest clause keyword at depth 0
+  let maxKw = 0,
+    depth = 0;
+  for (const line of lines) {
+    if (depth === 0) {
+      const m = line.match(CLAUSE_RE);
+      if (m) maxKw = Math.max(maxKw, m[1].replace(/\s+/g, " ").length);
+    }
+    depth = Math.max(0, depth + countParenDelta(line));
   }
 
-  for (const broken in keywordFixes) {
-    const regex = new RegExp(broken, 'gi')
-    text = text.replace(regex, keywordFixes[broken])
-  }
+  const COL = maxKw + 2; // single content column for the whole query
 
-  text = text.replace(/\s*,\s*/g, ', ')
-  text = text.replace(/\s*=\s*/g, ' = ')
+  // pass 2: rebuild
+  const out: string[] = [];
+  depth = 0;
+  let subqueryIndent = 0;
 
-  return text
-}
-
-function alignSelectColumns(sql: string): string {
-  const lines = sql.split('\n')
-
-  return lines
-    .map(line => {
-      if (line.trim().startsWith(',')) {
-        return '  ' + line.trim()
+  for (const line of lines) {
+    if (depth === 0) {
+      const m = line.match(CLAUSE_RE);
+      if (m) {
+        const kw = m[1].replace(/\s+/g, " ").toUpperCase();
+        const rest = line.slice(m[0].length).trimStart();
+        const pad = " ".repeat(COL - kw.length);
+        depth = Math.max(0, depth + countParenDelta(rest));
+        subqueryIndent = COL + 2;
+        out.push(rest ? `${kw}${pad}${rest}` : kw);
+      } else {
+        depth = Math.max(0, depth + countParenDelta(line));
+        out.push(`${" ".repeat(COL)}${line}`);
       }
+    } else {
+      out.push(`${" ".repeat(subqueryIndent)}${line}`);
+      depth = Math.max(0, depth + countParenDelta(line));
+      if (depth === 0) subqueryIndent = 0;
+    }
+  }
 
-      return line
-    })
-    .join('\n')
+  return out.join("\n");
 }
 
-function looksLikeSQL(text: string): boolean {
-  const keywords = [
-    'select ',
-    'insert ',
-    'update ',
-    'delete ',
-    'join ',
-    'from ',
-    'where ',
-    'set ',
-    'and ',
-    'or ',
-    'like ',
-    'in ',
-    'limit ',
-    'offset ',
-    'values ',
-    'left ',
-    'on ',
-    'right ',
-    'inner ',
-    'outer ',
-    'group by ',
-    'order by ',
-    'count(',
-    'sum(',
-    'desc',
-    'asc'
-    'select ',
-    'insert ',
-    'update ',
-    'delete ',
-    'join ',
-    'from ',
-    'where ',
-    'set ',
-    'and ',
-    'or ',
-    'like ',
-    'in ',
-    'limit ',
-    'offset ',
-    'values ',
-    'left ',
-    'on ',
-    'right ',
-    'inner ',
-    'outer ',
-    'group by ',
-    'order by ',
-    'count(',
-    'sum(',
-    'desc',
-    'asc'
-  ]
-
-  const lower = text.toLowerCase()
-
-  return keywords.some(k => lower.includes(k))
+// net open-paren count for a line, ignoring parens inside string literals
+function countParenDelta(line: string): number {
+  let depth = 0,
+    inStr = false;
+  for (let i = 0; i < line.length; i++) {
+    const c = line[i];
+    if (c === "'" && !inStr) {
+      inStr = true;
+      continue;
+    }
+    if (c === "'" && inStr) {
+      inStr = false;
+      continue;
+    }
+    if (inStr) continue;
+    if (c === "(") depth++;
+    if (c === ")") depth--;
+  }
+  return depth;
 }
 
-export function deactivate() { }
-export function deactivate() { }
+// ─── sql detection ────────────────────────────────────────────────────────────
+
+function isSql(text: string): boolean {
+  return /\b(select\b[\s\S]+?\bfrom\b|insert\b|insert\b|values+into\b|update\b[\s\S]+?\bset\b|delete\s+from\b|create\s+table\b)/i.test(
+    text.trim(),
+  );
+}
+
+export function deactivate() {}
