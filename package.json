@@ -8,7 +8,7 @@
   "engines": {
     "vscode": "^1.80.0"
   },
-  "icon": "images/image.png",
+  "icon": "images/universal-sql-formatter.png",
   "categories": [
     "Programming Languages",
     "Formatters"
